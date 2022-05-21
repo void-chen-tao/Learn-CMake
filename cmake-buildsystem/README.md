@@ -93,7 +93,75 @@ cmake建议使用命令来设置target目标的属性，而非直接写入特定
 
 
 ###  Target Properties
+一般只有在将源文件编译为二进制目标文件时，使用目标参数**INCLUDE_DIRECTORIES**、**COMPILER_DEFINITIONS**和**COMPILER_OPTIONS**。
+
+INCLUDE_DIRECTORIES中出现的参数将会以-I或者-isystem的前缀的方式添加到编译行命令中去。
+
+COMPILE_DEFINITIONS的条目解释是以前缀-D或者/D且顺序不定的方式添加到编译行命令当中去。其中DEFINE_SYMBOL目标参数可能作为对SHARED、MODULE库目标的快捷方式被添加到命令行，以一种编译命令的方式。
+
+COMPILER_OPTIONS是来源于shell，按其属性值出现的顺序添加到编译命令行。
+
+而INTERFACE_INCLUDE_DIRECTORIES、INTERFACE_COMPILE_DEFINITIONS和INTERFACE_COMPILE_OPTIONS对于设置target的编译属性是有语法要求的 ———— 对于使用这些的调用方，必须要保证编译和连接的正确性。对于任何二进制目标而言，使用target_link_libraries()命令中指定的每个目标的INTERFACE_属性会被使用。
+
+```cmake{.line-numbers}
+set(srcs archive.cpp zip.cpp)
+if(LZMA_FOUND)
+  list(APPEND srcs lzma.cpp)
+endif()
+add_library(archive SHARED ${srcs})
+if(LZMA_FOUND)
+  # The archive library sources are compiled with -DBUILDING_WITH_LZMA
+  target_compile_definitions(archive PRIVATE BUILDING_WITH_LZMA)
+endif()
+target_compile_definitions(archive INTERFACE USING_ARCHIVE_LIB)
+
+add_executable(consumer)
+# Link consumer to archive and  consume its usage requirements. The consumer
+# executable sources are compiled with -DUSING_ARCHIVE_LIB.
+target_link_libraries(consumer archive)
+```
+
+一种很常见的现象是对于一个target，你可能不仅仅需要包括源文件夹，还需要包括相关的用于之前过程产生的生成文件夹中的文件，将这些文件路径都添加到INCLUDE_DIRECTORIES中去，此时CMAKE_INCLUDE_CURRENT_DIR关键字变量可以很好的将你需要的文件都添加到INCLUDE_DIRECTORIES属性中去。同理，变量CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE能够方便的将文件添加给INTERFACE_INCLUDE_DIRECTORIES的所有target。这样就能通过将多重不同路径下的文件夹能够通过target_link_libraries()方便的设置。
+
 ###  Transitive Usage Requirements
+target目标的属性设置可以传递给依赖项。target_link_libraries()命令中存在PRIVATE、INTERFACE和PUBLIC三个关键字来控制依赖项与target之间的设置参数的传递。
+
+```cmake{.line-numbers}
+add_library(archive archive.cpp)
+target_compile_definitions(archive INTERFACE USING_ARCHIVE_LIB)
+
+add_library(serialization serialization.cpp)
+target_compile_definitions(serialization INTERFACE USING_SERIALIZATION_LIB)
+
+add_library(archiveExtras extras.cpp)
+target_link_libraries(archiveExtras PUBLIC archive)
+target_link_libraries(archiveExtras PRIVATE serialization)
+# archiveExtras is compiled with -DUSING_ARCHIVE_LIB
+# and -DUSING_SERIALIZATION_LIB
+
+add_executable(consumer consumer.cpp)
+# consumer is compiled with -DUSING_ARCHIVE_LIB
+target_link_libraries(consumer archiveExtras)
+```
+从上述cmake程序可以看出，我们分别使用了INTEFACE关键字来设置了USING_ARCHIVE_LIB、USING_SERIALZATION_LIB来生成了archive和serialization静态库。但是在与archiveExtras库建立连接时，使用了PUBLIC关键字开放了archive的编译设置，而使用了PRIVATE关键字隐藏了serialization的编译定义。所以在第三方target使用archiveExtra库建立链接时，只能知道开放的编译选项，并不知道隐藏了的编译定义。
+
+一般而言，如果某个target只是依赖了一个单独的库，最好在target_link_libraries()命令中明确使用关键字PRIVATE来指明，而不是在头文件中。此外如果一个target依赖于一个库的头文件，不许明确的指出这是一个PUBLIC依赖。如果库的实现没有依赖项，只依赖了自己的头文件，需要明确指出是INTERFACE依赖。target_link_libraries()命令能够多次使用关键字来被使用。
+```cmake{.line-numbers}
+target_link_libraries(
+  archiveExtra
+  PUBLIC    archive
+  PRIVATE   serialization
+)
+```
+如何实现传播的呢？cmake通过读取依赖项target中的target属性参数中具有INTERFACE_变体的参数，并且其值添加到当前target对象中的non-INTERFACE参数中去，来实现了PRIVATE。例如：依赖项的INTERFACE_INCLUDE_DIRECTORIES将被读取并且添加到操作对象的INCLUDE_DIRECTORIES中去。但是有些参数和顺序有关并且需要可维护，此时target_link_libraries()的参数可能不为被正确的编译，因为顺序原因。但是可以通过适当的命令来更新顺序。
+如下面的例子，链接包的过程必须是lib1、lib2、lib3但是include包的过程必须是lib3、lib2、lib1.可以这样做
+```cmake{.line-numbers}
+target_link_libraries(myExe lib1 lib2 lib3)
+target_include_directories(myExe
+  PRIVATE   $<TARGET_PROPERTY:lib3,INTERFACE_INCLUDE_DIRECTORIES>
+)
+```
+
 ###  Comatible Interface Properties
 ###  Property Origin Debugging
 ###  Build Specification with Generator Expressions
