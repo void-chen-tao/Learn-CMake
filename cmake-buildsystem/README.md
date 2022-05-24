@@ -40,6 +40,24 @@ target_link_libraries(zipapp archive)
 
 - 注意：
   cmake还提供了**BUILD_SHARED_LIBS**变量用于在命令之外更改生成库的行为。库与其生成方式无关，库代表的是它与可执行文件之间的一种连接关系。特别需要说明的是，MODULE库类型的不同之处在于它通常也是不与可执行对象建立连接方式。也就是说，它不能存在于target_link_libraries()的右参数。因为它是作为一种新的插件技术在执行可执行文件之前被提前加载。同时还需要注意一点，如果库不导出任何符号表，该库只能是静态库；不能是动态库，因为动态库会生成一张符号表，以供连接时使用。
+
+演示：
+- MSVC
+  - default staict library
+    ![library-demo](test-static-shared-lib/images/step1.png)
+    ![library-demo](test-static-shared-lib/images/step2.jpg)
+    ![library-demo](test-static-shared-lib/images/step3.jpg)
+  - shared library
+    ![library-demo](test-static-shared-lib/images/step4.jpg)
+    ![library-demo](test-static-shared-lib/images/step5.jpg)
+    ![library-demo](test-static-shared-lib/images/step6.png)
+  - KeyWord
+    ![library-demo](test-static-shared-lib/images/step7.jpg)
+    ![library-demo](test-static-shared-lib/images/step8.png)
+    ![library-demo](test-static-shared-lib/images/step9.png)
+- gcc
+  pass
+
 #####  Apple Frameworks
 在cmake官方的介绍中，可以将一个动态库设置为**FRAMEWORK**属性来生成macOS或者IOS系统下的库架构包。根据Apple公司的统一习惯，还需要设置FRAMEWORK_VERSION参数，按照约定是设置为字符“A”；还有用于识别的一些符号(后缀？我也不清楚是什么，没用过IOS系统)
 ```cmake{.lines-number}
