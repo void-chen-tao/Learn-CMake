@@ -15,6 +15,14 @@ target_link_libraries(zipapp archive)
 说明：
 首先使用archive.cpp、zip.cpp、lzma.cpp这些源文件编译的目标文件来生成库文件，然后使用zipapp.cpp文件来生成zipapp可执行文件。但是因为可执行文件是需要使用到archive库文件，所以需要在链接过程将库文件与zipapp文件组合成一个整体。
 
+演示：
+- MSVC
+![binary-targets](/test-binary-target/images/step1.png)
+![binary-targets](/test-binary-target/images/step2.png)
+- gcc
+![binary-targets](test-binary-target/images/step3.jpg)
+![binary-targets](test-binary-target/images/step4.jpg)
+
 ###  Binary Executables
 - 语法：
   add_executable(mytool mytool.cpp)
@@ -310,6 +318,23 @@ target_link_libraries(exe2  lib1Version2  lib1Version3)
 
 
 ###  Property Origin Debugging
+使用cmake来创建项目时，脚本的执行成功与否很大程度上取决于代码是否正确、依赖项是否正确以及cmake脚本代码是否正确。者众多的因素导致当脚本出错时，很难判断是那一部分出错了。可以使用**CMAKE_DEBUG_TARGET_PROPERTY**变量来打印出target的编译信息。
+
+```cmake{.line-numbers}
+set(
+  CMAKE_DEBUG_TARGET_PROPERTIES
+  INCLUDE_DIRECTORIES
+  COMPILE_DEFINITIONS
+  POSITION_INDEPENDENT_CODE
+  CONTAINER_SIZE_REQUIRED
+  LIB_VERSION
+)
+add_executable(exe1  exe1.cpp)
+```
+对于关键字COMPATIBLE_INTERFACE_BOOL和COMPATIBLE_INTERFACE_STRING，debug将会打印该兼容性是由哪一个依赖项传递给target的，并且还将显示其他的target是否也依赖该兼容性接口。而对于COMPATIBLE_INTERFACE_NUMBER_MAX和COMPATIBLE_INTERFACE_NUMBER_MIN参数，debug将会打印每个依赖项的的参数。
+
+
+
 ###  Build Specification with Generator Expressions
 ####  Include Directories and Usage Requirements
 ###  Link Libraries and Generator Expressions
