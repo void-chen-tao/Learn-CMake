@@ -113,10 +113,15 @@ target_link_libraries(test_exe archive)
   OBJECT库既可以作为源文件用于生成target的组件，也可以作为链接的组件，并且能够重复使用。
 
 ##  Build Specification and Usage Requirements
-**target_include_directories()、target_compile_definitions()、target_compile_options()**这三个目标指明了按什么规则(需要那些头文件呀、需要添加那些编译命令呀、需要那些编译选项呀)来构建target目标以及生成的二进制文件的使用方式。本质上来说，这些命令是用来填充下面的这些target属性的：INCLUDE_DIRECTORIES、COMPILE_DEFINITIONS、COMPILE_OPTION、INTERFACE_INCLUDE_DIRECTORIES、INTERFACE_COMPILE_DEFINITIONS、INTERFACE_COMPILE_OPTIONS。
+**target_include_directories()、target_compile_definitions()、target_compile_options()**这三个命令指明了按什么规则(需要哪些头文件呀、需要添加哪些编译命令呀、需要哪些编译选项呀)来构建target目标以及生成二进制文件的makefile说明书。本质上来说，这些命令是用来填充下面的这些target属性的：INCLUDE_DIRECTORIES、COMPILE_DEFINITIONS、COMPILE_OPTION、INTERFACE_INCLUDE_DIRECTORIES、INTERFACE_COMPILE_DEFINITIONS、INTERFACE_COMPILE_OPTIONS。
 上述的三个函数都有三种模式，分别是**PRIVATE**、**PUBLIC**和**INTERFACE**。 PRIVATE模式仅填充目标属性的非INTERFACE_变体，INTERFACE模式仅填充INTERFACE_变体。 PUBLIC模式填充各自目标属性的两个变体。它们都是在命令中通过关键字来激活使用的。
 
 *我是这样理解的，对于每个target，cmake存储该target信息是设置了两个参数non-INTERFACE_variant和INTERFACE_variant,一旦你使用了PRIVATE参数target的non-INTERFACE_variant设置为true*
+*append：*
+  target                  --->      class
+  private properties      --->      private
+  public properties       --->      struct(默认全部开放)
+  interface properties    --->      public
 
 ```cmake{.lines-number}
 target_compile_definitions(
@@ -127,6 +132,25 @@ target_compile_definitions(
 ```
 cmake建议使用命令来设置target目标的属性，而非直接写入特定的属性关键字。因为属性关键字可能会弄混。
 
+猜想与验证：
+- 猜想1：PUBLIC会发生继承
+  现在我以FIRST宏编译archive库，然后使用PUBLIC链接main.exe。结果如下：
+  - gcc
+    ![transitive](test-target-property-and-keywords/image/step1.jpg)
+  猜想1总结：可以看出我只对archive库使用了编译宏定义，可是main.exe中却开启了FIRST宏定义，说明如果在编译中间库是PUBLIC，且目标是PUBLIC，目标将会继承中间库的编译选项。
+- 猜想2：PRIVATE不会继承
+  中间库使用PRIVATE，目标target使用PUBLIC
+  - gcc
+    ![transitive](test-target-property-and-keywords/image/step2.jpg)
+  猜想2总结，可以看到在main.exe中因为没有使用编译选项，所以打印的是默认的字符。而archive使用了FIRST编译选项，打印的是相应的first的内容。
+- 猜想3：编译选项是可以覆盖的
+  我现在使用FIRST编译archive，使用SECONDE编译main
+  - gcc
+    ![transitive](test-target-property-and-keywords/image/step3.jpg)
+  猜想3总结：可以看出虽然main是继承了archive库且archive也是PUBLIC状态，但是通过重写实现了编译选项的更改
+
+总结：INTERFACE其实是介于PUBLIC与PRIVATE之间的一个选项，既不会全部开放自身的属性，也不会全部隐藏自己的属性。
+    
 
 ###  Target Properties
 一般只有在将源文件编译为二进制目标文件时，使用目标参数**INCLUDE_DIRECTORIES**、**COMPILER_DEFINITIONS**和**COMPILER_OPTIONS**。
