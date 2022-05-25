@@ -102,6 +102,16 @@ target_link_libraries(test_exe archive)
 
 *问题1解决：我是这样理解的，cmake只是把它们编译一遍，并且临时存储，使用时拷贝，cmake执行完毕后销毁*
 
+演示：
+- MSVC
+  ![object-library-test-msvc](test-object-library/image/step1.png)
+  ![object-library-test-msvc](test-object-library/image/step2.png)
+- gcc
+  ![object-library-test-gcc](test-object-library/image/step3.jpg)
+  ![object-blirary-test-gcc](test-object-library/image/step4.jpg)
+- 总结：
+  OBJECT库既可以作为源文件用于生成target的组件，也可以作为链接的组件，并且能够重复使用。
+
 ##  Build Specification and Usage Requirements
 **target_include_directories()、target_compile_definitions()、target_compile_options()**这三个目标指明了按什么规则(需要那些头文件呀、需要添加那些编译命令呀、需要那些编译选项呀)来构建target目标以及生成的二进制文件的使用方式。本质上来说，这些命令是用来填充下面的这些target属性的：INCLUDE_DIRECTORIES、COMPILE_DEFINITIONS、COMPILE_OPTION、INTERFACE_INCLUDE_DIRECTORIES、INTERFACE_COMPILE_DEFINITIONS、INTERFACE_COMPILE_OPTIONS。
 上述的三个函数都有三种模式，分别是**PRIVATE**、**PUBLIC**和**INTERFACE**。 PRIVATE模式仅填充目标属性的非INTERFACE_变体，INTERFACE模式仅填充INTERFACE_变体。 PUBLIC模式填充各自目标属性的两个变体。它们都是在命令中通过关键字来激活使用的。
@@ -352,8 +362,27 @@ add_executable(exe1  exe1.cpp)
 对于关键字COMPATIBLE_INTERFACE_BOOL和COMPATIBLE_INTERFACE_STRING，debug将会打印该兼容性是由哪一个依赖项传递给target的，并且还将显示其他的target是否也依赖该兼容性接口。而对于COMPATIBLE_INTERFACE_NUMBER_MAX和COMPATIBLE_INTERFACE_NUMBER_MIN参数，debug将会打印每个依赖项的的参数。
 
 
-
 ###  Build Specification with Generator Expressions
+一个项目的生成手册可能需要使用到**generator expressions**，它能够处理cmake构建时的条件以及一些已知内容。例如，读取兼容性参数时可以使用TARGET_PROPERTY表达式。
+```cmake{.line-numbers}
+add_library(lib1Version2 SHARED lib1_v2.cpp)
+set_property(
+  TARGET  lib1Version2
+  PROPERTY  INTERFACE_CONTAINER_SIZE_REQUIRED  200
+)
+set_property(
+  TARGET  lib1Version2
+  APPEND PROPERTY COMPATIBLE_INTERFACE_NUMBER_MAX  CONTAINER_SIZE_REQUIRED
+)
+
+add_executable(exe1  exe1.cpp)
+target_link_libraries(exe1  lib1Version2)
+target_compile_definitions(exe1
+  PRIVATE  CONTAINER_SIZE=$<TARGET_PROPERTY:CONTAINER_SIZE_REQUIRED>
+)
+```
+
+
 ####  Include Directories and Usage Requirements
 ###  Link Libraries and Generator Expressions
 ###  Output Artifacts
