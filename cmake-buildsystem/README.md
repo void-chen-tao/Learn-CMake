@@ -183,6 +183,9 @@ target_link_libraries(consumer archive)
 
 一种很常见的现象是对于一个target，你可能不仅仅需要包括源文件夹，还需要包括相关的用于之前过程产生的生成文件夹中的文件，将这些文件路径都添加到INCLUDE_DIRECTORIES中去，此时CMAKE_INCLUDE_CURRENT_DIR关键字变量可以很好的将你需要的文件都添加到INCLUDE_DIRECTORIES属性中去。同理，变量CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE能够方便的将文件添加给INTERFACE_INCLUDE_DIRECTORIES的所有target。这样就能通过将多重不同路径下的文件夹能够通过target_link_libraries()方便的设置。
 
+- gcc
+  ![mulit-properties-test](test-target-property/image/step1.jpg)
+
 ###  Transitive Usage Requirements
 target目标的属性设置可以传递给依赖项。target_link_libraries()命令中存在PRIVATE、INTERFACE和PUBLIC三个关键字来控制依赖项与target之间的设置参数的传递。
 
