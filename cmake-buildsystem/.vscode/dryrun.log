@@ -1,0 +1,6 @@
+make.exe --dry-run --always-make --keep-going --print-directory
+make.exe: Entering directory 'z:/CMake-Learn/cmake-buildsystem'
+make.exe: Leaving directory 'z:/CMake-Learn/cmake-buildsystem'
+ 
+make.exe: *** No targets specified and no makefile found.  Stop.
+

@@ -206,9 +206,35 @@ add_executable(consumer consumer.cpp)
 # consumer is compiled with -DUSING_ARCHIVE_LIB
 target_link_libraries(consumer archiveExtras)
 ```
-从上述cmake程序可以看出，我们分别使用了INTEFACE关键字来设置了USING_ARCHIVE_LIB、USING_SERIALZATION_LIB来生成了archive和serialization静态库。但是在与archiveExtras库建立连接时，使用了PUBLIC关键字开放了archive的编译设置，而使用了PRIVATE关键字隐藏了serialization的编译定义。所以在第三方target使用archiveExtra库建立链接时，只能知道开放的编译选项，并不知道隐藏了的编译定义。
+![logic-flow-chart](test-transitive/logic-flow-chart.png)
+~~对于archive库而言，使用了**INTERFACE**编译选型定义了USING_ARCHIVE_LIB宏，表明该宏不仅仅适用于archive静态库，同时该宏也是一个能够传递的参数，然后使用该archive静态库与archiveExtras建立了链接，但是它们之间的链接方式是PUBLIC(公开的)，~~
+- MSVC
+  ![result](test-transitive/image/result1.png)
+  ![result](test-transitive/image/result2.png)
+  ![result](test-transitive/image/result3.jpg)
+  ![result](test-transitive/image/result4.jpg)
+  ![result](test-transitive/image/result5.jpg)
+  ![result](test-transitive/image/result6.jpg)
+  ![result](test-transitive/image/result7.jpg)
+- 现象
+  从结果来看，archive库和serialization库被编译时没有开启INTEFACE的宏定义，而archiveExtrea库却开启了对两个INTERFACE的宏定义。最后consumer只是开启了其中PUBLIC的宏定义。
+- 结论
+  这表明我之前的理解是错误的，INTERFACE并没有参与本次target对象的编译中去，而是通过链接被编译到了使用该target新生成的target中去了。这表明INTERFACE在仅仅是向上了一个接口以便被使用，但是本target是没有使用INTERFACE中的任何参数的。而对于新生成的archiveExtreas对象，两个参数通过链接被加入其编译选项中，然后主动将其中一个定义为了PUBLIC另一个定义为了PRIVATE，表明该target使用了这连个编译参数，并且对其中一个参数进行了公开，而另一个参数却选择了隐藏。此时consumer target在链接该库时，只使用了PUBLIC定义的相关参数。
 
-一般而言，如果某个target只是依赖了一个单独的库，最好在target_link_libraries()命令中明确使用关键字PRIVATE来指明，而不是在头文件中。此外如果一个target依赖于一个库的头文件，不许明确的指出这是一个PUBLIC依赖。如果库的实现没有依赖项，只依赖了自己的头文件，需要明确指出是INTERFACE依赖。target_link_libraries()命令能够多次使用关键字来被使用。
+- INTERFACE test
+  - MSVC
+    ![INTERFACE-test](test-transitive/image/result8.png)
+  - 结论
+    可以看到，如果我将所有的库的链接方式都使用INTERFACE，那么所有库包括可执行文件都没有使用相关的宏进行编译。这表明INTERFACE只是定义了一种交互的可能，如果在别的target中没有使用PUBLIC或者PRIVATE将它们转化为自己的属性，则不会采用INTERFACE中的参数来参与编译。
+  - MSVC 验证
+    ![check](test-transitive/image/result9.png)
+- PUBLIC test
+  - MSVC
+    ![PUBLIC-test](test-transitive/image/result10.jpg)
+  - 结论
+    可以看到，PUBLIC与INTERFACE的表现完全不同，INTERFACE不参与target对象的编译，只是传递参数；而PUBLIC不仅参与target对象的编译，同时还起到了传递参数的作用。PRIVATE参与本次target的编译，但是不参与参数的传递。
+
+一般而言，如果你只在本库中使用该宏定义且该库的头文件中的调用与该宏定义完全无关，建议使用PRIVATE。这样做的好处是隐藏了库的实现的同时避免了宏污染，不然编译参数会在整个依赖项中进行传递，可能造成一些意想不到的错误。如果该库不仅仅使用到了相关定义进行编译，同时被第三方调用时其头文件也是依赖该宏定义的，这种情况下就应该使用PUBLIC关键字开放编译条件，这样使用第三方的头文件就不会有问题。如果一个库的实现没有使用到相关的宏定义，但是在一个总的调度同文件中需要该编译命令才能正确使用该库文件时，应该使用INTERFACE。
 ```cmake{.line-numbers}
 target_link_libraries(
   archiveExtra
@@ -216,14 +242,22 @@ target_link_libraries(
   PRIVATE   serialization
 )
 ```
-如何实现传播的呢？cmake通过读取依赖项target中的target属性参数中具有INTERFACE_变体的参数，并且其值添加到当前target对象中的non-INTERFACE参数中去，来实现了PRIVATE。例如：依赖项的INTERFACE_INCLUDE_DIRECTORIES将被读取并且添加到操作对象的INCLUDE_DIRECTORIES中去。但是有些参数和顺序有关并且需要可维护，此时target_link_libraries()的参数可能不为被正确的编译，因为顺序原因。但是可以通过适当的命令来更新顺序。
-如下面的例子，链接包的过程必须是lib1、lib2、lib3但是include包的过程必须是lib3、lib2、lib1.可以这样做
-```cmake{.line-numbers}
-target_link_libraries(myExe lib1 lib2 lib3)
-target_include_directories(myExe
-  PRIVATE   $<TARGET_PROPERTY:lib3,INTERFACE_INCLUDE_DIRECTORIES>
-)
-```
+
+如何实现传播的呢？~~cmake通过读取依赖项target中的target属性参数中具有INTERFACE_变体的参数，并且其值添加到当前target对象中的non-INTERFACE参数中去，来实现了PRIVATE。例如：依赖项的INTERFACE_INCLUDE_DIRECTORIES将被读取并且添加到操作对象的INCLUDE_DIRECTORIES中去。但是有些参数和顺序有关并且需要可维护，此时target_link_libraries()的参数可能不为被正确的编译，因为顺序原因。但是可以通过适当的命令来更新顺序。~~
+cmake在链接时将读取被链接对象的INTERFACE参数(也就是target属性中带有INTERFACE_前缀的变体)，PUBLIC参数；如果此时是INTERFACE链接的，则当前主动链接方将只会读取target PUBLIC中的参数内容；如果此时是PUBLIC链接的，则当前调用方将会读取INTERFACE参数和PUBLIC参数。
+
+- 链接与include的顺序
+  - 顺序相同
+    正常链接即可。
+  - 顺序相反
+    使用generator expression表达式来指明顺序
+    如下面的例子，链接包的过程必须是lib1、lib2、lib3但是include包的过程必须是lib3、lib2、lib1.可以这样做
+    ```cmake{.line-numbers}
+    target_link_libraries(myExe lib1 lib2 lib3)
+    target_include_directories(myExe
+      PRIVATE   $<TARGET_PROPERTY:lib3,INTERFACE_INCLUDE_DIRECTORIES>
+    )
+    ```
 
 ###  Comatible Interface Properties
 存在一些target在设计之初就被要求兼容其他的target或者是众多依赖项的性质。
@@ -393,14 +427,19 @@ add_executable(exe1  exe1.cpp)
 一个项目的生成手册可能需要使用到**generator expressions**，它能够处理cmake构建时的条件以及一些已知内容。例如，读取兼容性参数时可以使用TARGET_PROPERTY表达式。
 ```cmake{.line-numbers}
 add_library(lib1Version2 SHARED lib1_v2.cpp)
+
+# 为lib1Version2添加了一个名为CONTAINER_SIZE_REQUIRED的参数，并且设置为了200
 set_property(
   TARGET  lib1Version2
   PROPERTY  INTERFACE_CONTAINER_SIZE_REQUIRED  200
 )
+
+# 将CONTAINER_SIZE_REQUIRED参数设置为了COMPATIBLE_INTERFACE_NUMBER_MAX
 set_property(
   TARGET  lib1Version2
   APPEND PROPERTY COMPATIBLE_INTERFACE_NUMBER_MAX  CONTAINER_SIZE_REQUIRED
 )
+
 
 add_executable(exe1  exe1.cpp)
 target_link_libraries(exe1  lib1Version2)
