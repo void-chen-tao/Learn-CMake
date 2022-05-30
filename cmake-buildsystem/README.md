@@ -259,7 +259,7 @@ cmake在链接时将读取被链接对象的INTERFACE参数(也就是target属�
     )
     ```
 
-###  Comatible Interface Properties
+###  Compatible Interface Properties
 存在一些target在设计之初就被要求兼容其他的target或者是众多依赖项的性质。
 例如，目标属性POSITION_INDEPENDENT_CODE可以用来指定一个布尔值，然后使用该布尔值来判断是否编译出独立于位置的target。同样的参数还有INTERFACE_INDEPENDENT_CODE。
 
@@ -292,6 +292,28 @@ target_link_libraries(exe2  lib1)
 从上述代码可以看出，对于exe1可执行文件，通过使用set_property函数主动设置了它的POSITION_INDEPENDENT_CODE为ON。
 而对于lib1动态库文件，将其设置为了INTERFACE_POSITION_INDEPENDENT_CODE，但是对于可执行文件exe2，同样链接了该库文件，这样就会导致exe2可执行文件的POSITION_INDEPENDENT_CODE参数因为链接了lib1导致同样被设置为了ON。
 
+- 演示
+  - gcc
+    ![demo](test-compativle-interface-properties/image/step1.jpg)
+    ![demo](test-compativle-interface-properties/image/step2.jpg)
+- 总结
+  从上述可以看出，由于在生成动态库时将INTERFACE_POSITION_INDEPENDENT_CODE参数设置为了ON。并没有设置exe2的INTERFACE_POSITION_INDEPENDENT_CODE参数，但是cmake脚本运行的结果却是exe2继承了动态库的参数。这儿就有两个问题，1、我能在链接时将该参数关闭吗？2、如果链接的库存在不同的INTERFACE_POSITION_INDEPENDENT_CODE参数，其可执行文件最终的结果将会是什么样呢？
+
+- 问题1测试
+  - gcc
+    ![demo](test-compativle-interface-properties/image/step3.jpg)
+    ![demo](test-compativle-interface-properties/image/step4.jpg)
+- 问题1结论
+  可以看到，我将lib1中的参数设置为了ON，然后再exe1中设置为了OFF，编译器报错了。说明不能过链接后的参数进行显示的更改。
+
+- 问题2测试
+  - gcc
+    ![demo](test-compativle-interface-properties/image/step5.jpg)
+    ![demo](test-compativle-interface-properties/image/step6.jpg)
+- 问题2结论
+  可以看到，可执行文件中的参数由第一个动态库的参数决定了，但是又和第二个动态库的参数不匹配，从而cmake编译器发出了兼容性报错警告。
+
+
 ```cmake{.line-numbers}
 add_library(lib1 SHARED lib1.cpp)
 set_property(
@@ -315,16 +337,19 @@ set_property(
 add_executable(exe2  exe2.cpp)
 target_link_libraries(exe2  lib1  lib2)
 ```
-上述代码存在两个问题：其中之一是对于exe1可执行文件而言，它链接了lib1动态库，可是生成动态库lib1时显式指明了该动态库的调用方的target属性为POSITION_INDEPENDENT_CODE，可是exe1被设置为了OFF，这儿就会产生冲突。其中之二是exe2可执行文件同时使用了lib1库和lib2库文件，它们连个文件一个要求调用方生成位置独立，一个要求调用方位置不独立。上述的冲突都会使CMake发出错误警告：
+
+~~上述代码存在两个问题：其中之一是对于exe1可执行文件而言，它链接了lib1动态库，可是生成动态库lib1时显式指明了该动态库的调用方的target属性为POSITION_INDEPENDENT_CODE，可是exe1被设置为了OFF，这儿就会产生冲突。其中之二是exe2可执行文件同时使用了lib1库和lib2库文件，它们连个文件一个要求调用方生成位置独立，一个要求调用方位置不独立。上述的冲突都会使CMake发出错误警告：~~
 ```cmake{.line-numbers}
 CMake Error: The INTERFACE_POSITION_INDEPENDENT_CODE property of "lib2" does not agree with the value of POSITION_INDEPENDENT_CODE already determined for "exe2"
 ```
-
 这样就存在一个问题：
 所有使用方必须和使用的target具有同样的POSITION_INDEPENDENT_CODE属性。
 
-解决冲突的方法：
-cmake可以通过使用COMPATIBLE_INTERFACE_BOOL目标属性中来扩展使用方的兼容方式。但是需要注意，每个使用方的属性必须和对应方的属性之间兼容。
+有时兼容性的参数可能是由用户指定的，不一定是cmake中的特定bool关键字。如何实现将用户添加的属性设置为兼容性bool值呢？
+使用set_property，指明对象，然后使用APPEND关键字来添加自定义属性，然后设置自定义参数为“兼容性接口bool值”，然后是该参数的名称。具体代码如下：
+**set_property(TARGET xxx APPEND PROPERTY COMPATIBLE_INTERFACE_BOOL CUSTOMER_PROP)**
+~~解决冲突的方法：~~
+~~cmake可以通过使用COMPATIBLE_INTERFACE_BOOL目标属性中来扩展使用方的兼容方式。但是需要注意，每个使用方的属性必须和对应方的属性之间兼容。~~
 ```cmake{.line-numbers}
 add_library(lib1Version2 SHARED lib1_v2.cpp)
 set_property(
@@ -348,6 +373,31 @@ target_link_libraries(exe1  lib1Version2)   # CUSTOM_PROP  will be ON
 add_executable(exe2  exe2.cpp)
 target_link_libraries(exe2  lib1Version2  lib1Version3)   # Diagnostic
 ```
+
+- 用户自定义bool演示
+  - gcc
+    ![demo](test-compativle-interface-properties/image/step7.png)
+  - 结论
+    可以看到cmakeDEBUG的结果，打印出了*Boolean compatibility of property “LIB_TEST_USER” for target “exe1”*
+  
+- 多对象兼容性演示
+  - gcc
+    ![demo](test-compativle-interface-properties/image/step8.jpg)
+  - 结论
+    可以看到DEBUG详细显示，同样自定义兼容性bool值起到了传递和验证的作用；同时可以看到，我只是为lib1增添了一个属性，同时却在lib2中其作用了。
+
+- 兼容性与顺序是否有关演示
+  - gcc
+    ![demo](test-compativle-interface-properties/image/step9.jpg)
+  - 结论
+    **COMPATBLE_INTERFACE_BOOL**值与链接的顺序无关。
+
+- BOOL与定义
+  - gcc
+    ![demo](test-compativle-interface-properties/image/step10.jpg)
+  - 结论
+    可以看到，如果没有定义COMPATIBLE_INTERFACE_BOOL值的话，就算你添加了也是起作用的。
+
 从上述代码可以看出，lib1Version2动态库使用set_property命令打开了INTERFACE_CUSTOM_PROP(用户属性兼容接口)，然后又通过set_property命令来添加了接口兼容的COMPATIBLE_INTERFACE_BOOL，并且使用了CUSTOM_PROP参数。
 对于exe1target可以看出，其POSITON_INDEPENDENT_CODE应该是被设置为OFF，而lib1Version2库是一个动态库，其POSITON_INDEPENDENT_CODE应该是ON，此时通过扩展了兼容属性，CUSTOM_PROP将会被设置为ON，表示兼容ON与OFF所产生的冲突。
 所以对于exe2target对象而言，关闭了其接口兼容，此时一个为ON，一个为OFF当然后产生Cmake错误。
@@ -376,6 +426,18 @@ target_link_libraries(exe1  lib1Version2)  #  LIB_VERSION will be "2"
 add_executable(exe2  exe2.cpp)
 target_link_libraries(exe2  lib1Version2  lib1Version3)  #  Diagnostic
 ```
+
+- 兼容接口字符串演示
+  - gcc
+    ![demo](test-compativle-interface-properties/image/step11.jpg)
+  - 结论
+    可以看出，成功为target对象添加了LIB_VERSION属性
+
+  - gcc
+    ![demo](test-compativle-interface-properties/image/step12.jpg)
+  - 结论
+    如果使用了兼容字符串，但是连接时如果字符串不兼容，编译器同样会报错
+
 对于lib1Version2而言，对其添加了LIB_VERSION字符串，然后将该字符串通过COMPATIBLE_INTERFACE_STRING设置为了兼容字符串。所以对于可执行文件exe1来说，它与target属性将会被设置为2。此时如果同时对于可执行文件exe2链接了lib1Version2和lib1Version3，此时它们两个库的LIB_VERSION将会发生冲突。
 
 如何解决这样的冲突呢？通常，我们对于存在同一个库的多个版本的链接，要么是选择版本最高的库要么是选择版本最低的库。可以通过COMPATIBLE_INTERFACE_NUMBER_MAX/MIN参数来设置。
@@ -404,6 +466,10 @@ add_executable(exe2 exe2.cpp)
 target_link_libraries(exe2  lib1Version2  lib1Version3)
 ```
 从上述可以看出，对于只存在单个库lib1Version2的exe1可执行文件而言，由于存在COMPATIBLE_INTERFACE_SIZE_REQUIRED将会被设置为200；但是如果存在多个库，他将会按最大的参数来链接指定的库。
+
+- COMPATIBLE_INTERFACE_NUMBER_MAX/MIN演示
+  - gcc
+  ![demo](test-compativle-interface-properties/image/step13.jpg)
 
 
 ###  Property Origin Debugging
