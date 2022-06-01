@@ -615,6 +615,41 @@ target_link_libraries(exe1 ClimbingStats)
 ![demo](test-generator-expression/image/step4.jpg)
 
 ####  Include Directories and Usage Requirements
+在使用明确语法与生成表达式的头文件引用中，需要特别注意。第一点、因为target_include_directories()命令接受相对路径和绝对路径，如下所示：
+```cmake{.line-numbers}
+add_library(lib1 lib1.cpp)
+target_include_directories(lib1 PRIVATE
+    /absolute/path
+    relative/path
+)
+```
+相对路径是相对于出现该命令的源文件夹而言。注意对于IMPORTED target的头文件引用不能使用相对路径。
+为了使用更加简洁的命令代码，**INSTALL_PREFIX**表达式被使用在了安装接口参数中。它是一个扩展的替代符，在被项目使用时将会被替换成为安装路径。
+
+一般来说，对于生成树和安装树，它们的引用文件夹是不同的。所以**BUILD_INTERFACE**和**INSTALL_INTERFACE**能够用来处理路径，语法要求不同的情况。同样可以在**INSTALL_INTERFACE**中使用相对路径，但是其相对路径的前缀将不再被解释为相对于命令出现的文件夹，而是相对于安装前缀。例如：
+```cmake{.line-numbers}
+add_library(ClimbinStats climbingstats.cpp)
+target_include_directories(ClimbingStats INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
+    $<INSTALL_INTERFACE:/absolute/path>
+    $<INSTALL_INTERFACE:relative/path>
+    $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/$<CONFIG>/generated>
+)
+```
+cmake提供了两个关键字，能够方便的在包含头文件中使用。*CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE*其效果如下
+```cmake{.line-numbers}
+set_property(TARGET tgt APPEND PROPERTY INTERFACE_INCLUDE_DIRECTORIES
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR};${CMAKE_CURRENT_BINARY_DIR}>
+)
+```
+对于每一个使用了generator表达式的target，安装命令变得更加方便使用了：
+```cmake{.line-numbers}
+install(TARGETS foo bar bat EXPORT tgts ${dest_args}
+    INCLUDES DESTINATION include
+)
+install(EXPORT tgts ${other_args})
+install(FILES ${headers} DESTINATION include)
+
 ###  Link Libraries and Generator Expressions
 ###  Output Artifacts
 ####  Runtime Output Artifacts
