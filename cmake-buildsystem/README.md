@@ -612,9 +612,7 @@ target_link_libraries(exe1 ClimbingStats)
     可以看出export导出的文件是带有.cmake后缀的相关target的配置文件。而安装文件才是实际的target文件
     ![demo](test-generator-expression/image/step3.jpg)
 一般按照约定export的文件目录如下
-target --- lib
-target-export-file --- lib/cmake/target
-
+![demo](test-generator-expression/image/step4.jpg)
 
 ####  Include Directories and Usage Requirements
 ###  Link Libraries and Generator Expressions
