@@ -1,0 +1,86 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.5"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "test-transitive",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "archive::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-archive-Debug-76ff184251bdabb7366d.json",
+					"name" : "archive",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "archiveExtras::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-archiveExtras-Debug-fa31c33c97d0239bc529.json",
+					"name" : "archiveExtras",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "consumer::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-consumer-Debug-46ce1f3ae67ef3b9de9c.json",
+					"name" : "consumer",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "serialization::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-serialization-Debug-30afae98efc2cb778ad7.json",
+					"name" : "serialization",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "Z:/CMake-Learn/cmake-buildsystem/test-transitive/out/build/x64-Debug",
+		"source" : "Z:/CMake-Learn/cmake-buildsystem/test-transitive"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 2
+	}
+}

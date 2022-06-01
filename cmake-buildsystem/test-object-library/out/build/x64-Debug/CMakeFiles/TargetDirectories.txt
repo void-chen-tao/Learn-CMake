@@ -1,0 +1,5 @@
+Z:/CMake-Learn/cmake-buildsystem/test-object-library/out/build/x64-Debug/CMakeFiles/rebuild_cache.dir
+Z:/CMake-Learn/cmake-buildsystem/test-object-library/out/build/x64-Debug/CMakeFiles/archive.dir
+Z:/CMake-Learn/cmake-buildsystem/test-object-library/out/build/x64-Debug/CMakeFiles/lib.dir
+Z:/CMake-Learn/cmake-buildsystem/test-object-library/out/build/x64-Debug/CMakeFiles/test_exe.dir
+Z:/CMake-Learn/cmake-buildsystem/test-object-library/out/build/x64-Debug/CMakeFiles/edit_cache.dir

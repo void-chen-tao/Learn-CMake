@@ -198,6 +198,7 @@ target_compile_definitions(serialization INTERFACE USING_SERIALIZATION_LIB)
 
 add_library(archiveExtras extras.cpp)
 target_link_libraries(archiveExtras PUBLIC archive)
+
 target_link_libraries(archiveExtras PRIVATE serialization)
 # archiveExtras is compiled with -DUSING_ARCHIVE_LIB
 # and -DUSING_SERIALIZATION_LIB
@@ -490,7 +491,9 @@ add_executable(exe1  exe1.cpp)
 
 
 ###  Build Specification with Generator Expressions
-一个项目的生成手册可能需要使用到**generator expressions**，它能够处理cmake构建时的条件以及一些已知内容。例如，读取兼容性参数时可以使用TARGET_PROPERTY表达式。
+~~一个项目的生成手册可能需要使用到**generator expressions**，它能够处理cmake构建时的条件以及一些已知内容。例如，读取兼容性参数时可以使用TARGET_PROPERTY表达式。~~
+项目的生成说明书(因为CMake会先生成Makefile————Makefile相当于项目的生成说明书)中可能使用到一些特殊的条件或者是只有在CMake运行时才能知道的内容，对于这种情况可以使用生成表达式来使用这种情况。例如，在计算兼容性值的属性时可能需要读取target属性的表达式：
+
 ```cmake{.line-numbers}
 add_library(lib1Version2 SHARED lib1_v2.cpp)
 
@@ -513,6 +516,104 @@ target_compile_definitions(exe1
   PRIVATE  CONTAINER_SIZE=$<TARGET_PROPERTY:CONTAINER_SIZE_REQUIRED>
 )
 ```
+上面的CMake为lib1Version2增加了COMPATIBLE_INTERFACE_NUMBER_MAX属性，并且设置名称为CONTAINER_SIZE_REQUIRED。在与exe1进行链接时这些属性都将会传递给exe1。此时却使用了该属性来编译exe1，要获取属性的值时，使用到了generator expression表达式。
+
+一元的TARGET_PROPERTY、TARGET_POLICY生成表达式通过调用该方法的TARGET来计算相应的值，这就表明生成的构建说明书将基于不同的target的调用者得到不同的值。
+
+```cmake{.line-numbers}
+add_library(lib1 lib1.cpp)
+target_compile_definitions(lib1 INTERFACE
+  $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:LIB1_WITH_EXE>
+  $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,SHARED_LIBRARY>:LIB1_WITH_SHARED_LIB>
+  $<$<TARGET_POLICY:CMP0041>:CONSUMER_CMP0041_NEW>
+)
+
+add_executable(exe1 exe1.cpp)
+target_link_libraries(exe1 lib1)
+
+cmake_policy(SET CMP0041 NEW)
+
+add_library(shared_lib shared_lib.cpp)
+target_link_libraries(shared_lib lib1)
+```
+上述cmake中，lib1中使用了INTERFACE的generator expression。由于可执行文件链接到了lib1，exe1将会接受INTERFACE中的属性(因为没有特别指明——表示是以PUBLIC的方式进行链接的)，此时generator expression将会生效。因为exe1是一个可执行文件，以-DLIB1_WITH_EXE的编译选项来编译exe1可执行文件。
+~~又由于shared_lib中同样链接了lib1库，且shared_lib是使用~~此处shared_lib明明是静态库，可是为什么官方文档说是动态库
+
+- demostration
+  - MSVC
+  ![demo](test-generator-expression/image/step1.jpg)
+  - summary
+    可以看到，实际cmake编译出的结果与我想象的一样，因为shared_lib是没有使用SHARED关键字，所以是没有-DLIB1_WITH_SHARED_LIB编译选项的。但是值得注意的一点是，我是在可执行文件代码后面设置的cmake_policy，但实际上他却全局生效了。
+
+
+- 补充知识————export
+  出口targets或者是packages以便外部的项目可以在当前的构成树中直接使用它们，而不需要安装命令。
+  更加相依的资料可以看install(EXPORT)命令来从安装树中出口targets。
+
+  - 语法
+  ```cmake{.line-numbers}
+    export(TARGETS <target>... [...])
+    export(EXPORT <export-name> [...])
+    export(PACKAGE <PackageName>)
+  ```
+  从上面可以看出，可以对外出口target、export、package。
+
+  - Exporting Targets
+    ```cmake{.line-numbers}
+    export(TARGETS <target>... [NAMESPACE <namespace>]
+           [APPEND] FILE <filename> [EXPORT_LINK_INTERFACE_LIBRARIES])
+    ```
+    该命令会创建一个**filename**,外部项目可以通过该**filename**来获取**target...**中的所有构建树参数。这在交叉编译中非常有用，可以在主平台中编译然后在实际的嵌入式环境中通过引用还直接使用该可执行文件，或者是获取该可执行文件的构造参数之类的。
+    该命令生成的文件只适用于构造树(build tree)，并且绝对不能通过install(EXPORT)命令在安装树(install tree)中使用。
+
+    - argument
+      - NAMESPACE <namespace>
+        在export生成的文件中写入时，需要指明target的namespace
+      - APPEND
+        向已有文件中添加而不是覆盖掉build tree文件。可以在同一个export文件中新增多个子CMakeLists生成的target
+      - EXPORT_LINK_INTERFACE_LIBRARIES
+        包含以模式命名的属性内容
+    使用这个语句时，所有的target必须被显式的列出，如果你出口了一个相关的库，但是该库的链接相关依赖项没有被出口，此时使用方使用了该命令，后果是不可知的。
+  
+  - Exporting Targets matching install(EXPORT)
+    ```cmake{.line-numbers}
+    export(EXPORT <export-name> [NAMESPACE <namespace>] [FILE <filename>])
+    ```
+    创建一个filename的文件，外部cmake项目可以使用该filename名称来引入当前项目的生成树。与export(TARGETS)一样，但是值得注意的一点是使用该命令的target不会被显式的列出像export(TARGETS)一样。相反，该命令能够导出与安装export相关联的target。可以在install(TARGETS)命令中使用export导出相关的安装项，然后使用export命令来导出。
+
+  - Exporting Package
+    ```cmake{.line-numbers}
+    export(PACKAGE <PackageName>)
+    ```
+    将当前构建目录存储在包<PackageName>的CMake用户包注册表中。然后可以使用find_package()命令来通过包名来找到该包文件。这将帮助依赖项项目找到并且使用当前文件生成树中产生的包文件。包文件与安装树文件生成文件是一起作用的。
+
+*BUILD_INTERFACE*表达式只有在cmake --build .命令被输入时起作用(我的理解)、或者是在cmake中使用了export关键字时生效。而*INSTALL_INTERFACE*表达式只有在使用了cmake --install .命令后生效
+```cmake{.line-numbers}
+add_library(ClimbingStats climbingstats.cpp)
+target_compile_definitions(ClimbingStats INTERFACE
+  $<BUILD_INTERFACE:ClimbingStats_FROM_BUILD_LOCATION>
+  $<INSTALL_INTERFACE:ClimbingStats_FROM_INSTALLED_LOCATION>
+)
+
+install(TARGETS ClimbingStats EXPORT libExport ${InstallArgs})
+install(EXPORT libExport NAMESPACE Upstream::
+        DESTINATION lib/cmake/ClimbingStats)
+export(EXPORT libExport NAMESPACE Upstream::)
+
+add_executable(exe1 exe1.cpp)
+target_link_libraries(exe1 ClimbingStats)
+```
+在上面的例子中，exe1可执行文件将会和-DClimbingStats_FROM_BUILD_LOCATION一起被编译。
+
+- demostration
+  - gcc
+    ![demo](test-generator-expression/image/step2.jpg)
+  - summary
+    可以看出export导出的文件是带有.cmake后缀的相关target的配置文件。而安装文件才是实际的target文件
+    ![demo](test-generator-expression/image/step3.jpg)
+一般按照约定export的文件目录如下
+target --- lib
+target-export-file --- lib/cmake/target
 
 
 ####  Include Directories and Usage Requirements
