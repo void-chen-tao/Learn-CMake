@@ -649,8 +649,26 @@ install(TARGETS foo bar bat EXPORT tgts ${dest_args}
 )
 install(EXPORT tgts ${other_args})
 install(FILES ${headers} DESTINATION include)
+```
+上述代码等同于添加“${CMAKE_INSTALL_PREFIX}/include”参数赋值给每个安装target对象的**INTERFACE_INCLUDE_DIRECTORIES**参数中去。
+
 
 ###  Link Libraries and Generator Expressions
+在链接库时，同样可以使用*generator expression*。然而链接方通过调用被链接方来实现链接，就存在一个额外的限制**被链接的target不能形成一个有向无环图**(也就是说不能A->B->C->A)。也就是说，如果链接到目标依赖于目标属性的值，那么目标属性可能不依赖于链接的依赖项:(???)
+```cmake{.line-numbers}
+add_library(lib1 lib1.cpp)
+add_library(lib2 lib2.cpp)
+target_link_libraries(lib1 PUBLIC
+    $<$<TARGET_PROPERTY:POSITION_INDEPENDENT_CODE>:lib2>
+)
+
+add_library(lib3 lib3.cpp)
+set_property(TARGET lib3 PROPERTY INTERFACE_POSITION_INDEPENDENT_CODE ON)
+
+add_executable(exe1 exe1.cpp)
+target_link_libraries(exe1 lib1 lib3)
+```
+
 ###  Output Artifacts
 ####  Runtime Output Artifacts
 ####  Library Output Artifacts
