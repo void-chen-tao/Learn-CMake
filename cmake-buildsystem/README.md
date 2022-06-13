@@ -669,14 +669,90 @@ add_executable(exe1 exe1.cpp)
 target_link_libraries(exe1 lib1 lib3)
 ```
 
+
 ###  Output Artifacts
+使用**add_library()**和**add_executable()**命令创建的target构建规则生成的*buildsystem target*将会在**cmake --build .**或者是*make*阶段将会产生二进制的输出。如果想准确定位二进制文件的输出，必须使用*generator exprssion*表达式来描述位置。因为生成位置依赖于target的生成配置和被链接依赖项的连接语言等**TARGET_FILE**,**TARGET_LINKER_FILE**以及相关的表达式能够用来访问和定位生成的二进制文件。但是这些表达式对于OBJECT库并不起作用，因为上述的描述对象不包括OBJECT库文件。
+存在三种方式来使用手动输出。这三种方式根据是否是DLL平台而存在不同的行为。所有的基于windows系统的包括Cygwin都是DLL平台。
+
 ####  Runtime Output Artifacts
+适用于运行时的手动输出：
+- 使用add_executable()命令生成的可执行文件(.exe或者是.a文件)
+- 在DLL平台下：使用add_library()命令且SHARED选项被开启的动态库对象(.dll文件)
+**RUNTIME_OUTPUT_DIRECTORY**和**RUNTIME_OUTPUT_NAME**对象属性能够被用来在生成树中控制运行时手动输出的位置和名称
+
 ####  Library Output Artifacts
+适用于库的手动输出：
+- 使用add_library()命令生成的且使用**MODULE**显示开启的能够被导入的模块库对象(.dll或者.so文件)
+- 非DLL平台：使用add_library()命令且带有SHARED关键字的动态库对象(.so或者.dylib文件)
+上述能够使用**LIBRARY_OUTPUT_DIRECTORY**和**LIBRARY_OUTPUT_NAME**对象属性能够在生成树中用来控制库的手动输出和命名。
+
 ####  Archive Output Artifacts
+适用于档案对象的手动输出：
+- 使用add_library()命令且STATIC关键字生成的静态库对象(.lib和.a文件)
+- DLL平台：由add_library()命令和shared选项创建的共享库目标的导入库文件(例如.lib)。只有当库导出至少一个非托管符号时，才保证此文件存在
+- DLL平台：一个使用add_executable()命令生成的可执行对象，且该对象的ENABLE_EXPORTS属性被设置时的导入库文件。
+- AIX平台：一个使用add_executable()命令生成的且ENABLE_EXPORTS属性被设置的连接导入文件。
+**ARCHIVE_OUTPUT_DIRECTORY**和**ARCHIVE_OUTPUT_NAME**对象属性能够用来管理生成树中的上述文件的定位和名称。
+
 ###  Directory-Scoped Commands
+命令**target_include_directories()**,**target_compile_definitions()**和**target_compile_option()**命令，在命令的执行期间只能作用于一个target。**add_compile_definitions()**,**add_compile_option()**和**include_directories()**具有上述命令同样的功能，但是不同的是这些命令具有文件作用域，能够更加方便的在文件中使用。
+
 ##  Build Configurations
+配置为不同类型的构建(Release或Debug)确定构建规范。而配置信息又由**generator**表达式所决定。对于想Makefile Generators和Ninja这样的单配置生成器，配置在配置时间通过CMAKE_BUILD_TYPE变量来明确指出。对于像Visual Studio、Xcode和Ninga Multi-Config这样的多配置生成器，配置将会在build期间被选择使用，而配置期间的CMAKE_BUILD_TYPE变量将会被忽略。对于多配置事件，可以使用**CMAKE_CONFIGURATION_TYPES**变量在配置期间来指明build的可配置参数，但是实际的配置信息在build之前都是未知的。下述的CMake脚本通常导致误解和潜在的错误代码：
+```cmake{.line-numbers}
+# WARNING:  This is wrong for muti-config generators because they don't use and typically don't even set CMAKE_BUILD_TYPE
+string(TOLOWER ${CMAKE_BUILD_TYPE} build_type)
+if(build_type STREQUAL debug)
+    target_compile_definitions(exe1 PRIVATE DEBUG_BUILD)
+endif()
+```
+- reason
+  原因是上述代码对于多配置生成器而言，永远不会生成带有DEBUG_BUILD编译命令的debug项目。因为多配置生成器不使用关键变量CMAKE_BUILD_TYPE
+上述问题可以使用生成表达式来替换，是脚本对于任何生成器都能到达同样的效果。
+```cmake{.line-numbers}
+# Works correctly for both single and multi-config generators
+target_compile_definitions(exe1 PRIVATE
+    $<$<CONFIG:Debug>:DEBUG_BUILD>
+)
+```
+上述生成表达式语句同样适用于*IMPORTED*target
+
+这儿说一句：因为我的电脑环境中存在太多的编译器了，连MSVC都有好几个。以前使用CMake是总是在CMake ..时使用CMAKE_BUILD_TYPE=Debug。有一次生成的项目死活不然调试，搞得我还以为Visual Studio出问题了。
+
 ###  Case Sensitivity
+*CMAKE_BUILD_TYPE*和*CMAKE_CONFIGURATION_TYPES*像其他字符串变量一样，可以通过STREQUAL来进行比较时，是字符串大小写敏感的。$< CONFIG>生成器表达式还保留由用户或CMake默认设置的配置大小写。例如:
+```cmake{.line-numbers}
+# NOTE: Don't use these patterns, they are for illustration purposes only.
+set(CMAKE_BUILD_TYPE Debug)
+if(CMAKE_BUILD_TYPE STREQUAL DEBUG)
+    # ... will never get here, "Debug" != "DEBUG"
+endif()
+
+add_custom_target(print_config ALL
+    #   Prints "Config is Debug" in this single-config case
+    COMMAND ${CMAKE_COMMAND} -D echo "Config is $<CONFIG>"
+    VERBATIM
+)
+
+set(CMAKE_CONFIGURATION_TYPES Debug Release)
+if(DEBUG IN_LIST CMAKE_CONFIGURATION_TYPES)
+    # ... will never get here, "Debug" != "DEBUG"
+endif()
+```
+相比之下，CMake在内部根据配置修改行为的地方使用配置类型时不区分大小写。例如：在$< CONFIG:Debug>生成表达式中，Debug、DEBUG、debug或者是DEbug都能让该表达式计算出1的结果。因此，在使用CMAKE_BUILD_TYPE或者CMAKE_CONFIGURATION_TYPES的表达式语句中，无论大小写都行。但是在字符串比较中，最好先将字符串统一转换为大写或小写，然后再比较。
+
 ###  Default And Custom Configurations
+在默认情况下，CMAKE定义了下述的标准配置
+- Debug
+- Release
+- RelWithDebInfo
+- MinSizeRel
+
+在多配置生成器中，**CMAKE_CONFIGURATION_TYPES**将会使用上述标准配置列表中的某一项进行填充，除非项目生成TYPES被写死或者用户改写了值。一般变量的实际值在build期间发生传递和改写。(也就是说，你在cmake中，或者配置过程中分别给CMAKE_CONFIGURATION_TYPES不同的值，最后只有build时的值是有效的，其他都会被覆盖)
+对于但配置生成器而言，CMAKE_BUILD_TYPE变量必须在配置期间被指明，并且此后将不受更改。并且默认配置信息将会被置为none，并且被一个空字符串替代。一个普遍的误解是以为它的表现形式与Debug是类似的，实际上是不对的。用于应该显示指定来避免普通的问题。
+
+上述的四种标准配置关键字在大多数的平台都是能够被解释的(也就是说：一般来说是能够被识别的)，但是同样可能在上述四种的情况下进行额外的类型扩展。每个配置都为所使用的语言定义了一组编译器和链接器标志变量。这些变量遵循惯例CMAKE_< LANG>_ FLAGS_< CONFIG>，其中< CONFIG>总是大写的配置名称。在定义自定义配置类型时，确保适当地设置了这些变量，通常是缓存变量
+
 ##  Pseudo Targets
 ###  Imported Targets
 ###  Alias Targets
