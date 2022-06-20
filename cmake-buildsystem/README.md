@@ -754,6 +754,79 @@ endif()
 上述的四种标准配置关键字在大多数的平台都是能够被解释的(也就是说：一般来说是能够被识别的)，但是同样可能在上述四种的情况下进行额外的类型扩展。每个配置都为所使用的语言定义了一组编译器和链接器标志变量。这些变量遵循惯例CMAKE_< LANG>_ FLAGS_< CONFIG>，其中< CONFIG>总是大写的配置名称。在定义自定义配置类型时，确保适当地设置了这些变量，通常是缓存变量
 
 ##  Pseudo Targets
+有时设置了目标的类型并不表示该目标在构建系统中的输出类型，而例如外部输入项、其他的非人工的构建项等输入的类型是确定的。生成的构建系统中不存在*假*target。
+
 ###  Imported Targets
+一个被引用的target通常都是一个已经存在了的target。通常这样的target被定义为整个项目的上游包并且应默认它是不可更改的。在引入target之后，可以使用用户命令函数如**target_include_directories()，target_compile_option()，target_link_libraries()**向普通的target一样来设置外部引用target的属性。导入的target同样具有普通二进制targets一样的**INTERFACE_INCLUDE_DIRECTORIES,INTERFACE_COMPILE_DEFINITIONS,INTERFACE_LINK_LIBRARIES,and INTERFACE_POSITION_INDEPENDENT_CODE**。
+同样可可以读取导入target的**LOCATION**，但是一般不会这样做。而像**add_custom_command()**的命令可以很容易将导入的可执行文件执行。
+引入target的作用范围是它被定义的CMake脚本中。它可以被下一级的子文件中CMake使用，但是不能被父级CMake和同级CMake脚本中使用。这一点与CMake脚本中的变量类似。
+
 ###  Alias Targets
+ALIAS目标是在只读上下文中可以与二进制目标名称互换使用的名称。ALIAS对象常用在例子、库的伴生单元测试可执行文件，这些都是同一构建系统的一部分或者是基于用户而生成的单独配置。
+```cmake{.line-numbers}
+add_library(lib1 lib1.cpp)
+install(TARGETS lib1 EXPORT lib1Export ${dest_args})
+install(EXPORT lib1Export NAMESPACE Upstream:: ${other_args})
+
+add_library(Upstream::lib1 ALIAS lib1)
+```
+通过上述代码我们可以知道，我们在其他的库中使用Upstream::lib1来与该库进行链接，同时也可以使用ALIAS语句来对该库进行重命名后再链接使用。
+```cmake{.line-numbers}
+if(NOT TARGET Upstream::lib1)
+    find_package(lib1 REQUIRED)
+endif()
+add_executable(exe1 exe1.cpp)
+target_link_libraries(exe1 Upstream::lib1)
+```
+ALIAS对象一旦在一个cmake脚本中定义，它就是不能更改的、不可安装的同时可是不能导出的target。它完完全全是只存在于本地的构建系统中的脚本中。可以通过**ALIASED_TARGET**属性来判断一个target是否是ALIAS对象
+```cmake{.line-numbers}
+get_target_property(_aliased Upstream::lib1 ALIASED_TARGET)
+if(_aliased)
+    message(STATUS "The name Upstream::lib1 is an ALIAS for ${_aliased}.")
+endif()
+```
+可以使用get_target_property()和关键字**ALIASED_TARGET**参数来进行判断。
+
 ###  Interface Libraries
+一个INTERFACE库对象不会对库文件的源码进行编译同时不会实际存在于磁盘上的库文件，所以说INTERFACE库没有**LOACTION**。
+同样一个INTERFACE库文件也可以通过**INTERFACE_INCLUDE_DIRECTORIES，INTERFACE_COMPILE_DEFINITIONS，INTERFACE_COMPILE_OPTIONS，INTERFACE_LINK_LIBRARIES，INTERFACE_POSITION_INDEPENDENT_CODE**等关键字来设置INTERFACE库的属性。只用在INTERFACE模式下，**target_include_directories()，target_compile_definitons()，target_compile_options()，target_sources()，和target_link_libraries()**命令才能被使用。
+自从CMake3.19以来，一个INTERFACE库文件能够选择性的包含源文件。而包含源文件的INTERFACE库将会被添加到构建系统的生成树当中去。虽然它不编译任何源文件，但是可以使用用户命令函数来生成其他的源。此外，ide将把源文件作为目标的一部分显示，以便进行交互式读取和编辑。
+INTERFACE库的最主要用途是都是头文件的库文件。
+```cmake{.line-numbers}
+add_library(Eigen INTERFACE
+    src/eigen.h
+    src/vector.h
+    src/matrix.h
+)
+target_include_directories(Eigen INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+    $<INSTALL_INTERFACE:include/Eigen>
+)
+
+add_executable(exe1 exe1.cpp)
+target_link_libraries(exe1 Eigen)
+```
+上述代码使**Eigen**库文件被生成和安装在特定的位置，但是该库在链接时并没有什么特别的影响。它只是绑定了一个exe1文件target用于构建和生成在特定的位置。
+
+INTERFACE库可以被安装和出口。但是它们必须分开被安装。
+```cmake{.line-numbers}
+set(Eigen_headers
+    src/eigen.h
+    src/vector.h
+    src/matrix.h
+)
+
+add_library(Eigen INTERFACE ${Eigen_headers})
+target_include_directories(Eigen INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+    $<INSTALL_INTERFACE:include/Eigen>
+)
+
+install(TARGETS Eigen EXPORT eigenExport)
+install(EXPORT eigenExport NAMESPACE Upstream::
+    DESTINATION lib/cmake/Eigen
+)
+install(FILES ${Eigen_headers}
+    DESTINATION include/Eigen
+)
+```
