@@ -1,0 +1,3 @@
+Z:/CMake-Learn/cmake-compile-features/compiler-feature/build/CMakeFiles/TEST.dir
+Z:/CMake-Learn/cmake-compile-features/compiler-feature/build/CMakeFiles/edit_cache.dir
+Z:/CMake-Learn/cmake-compile-features/compiler-feature/build/CMakeFiles/rebuild_cache.dir

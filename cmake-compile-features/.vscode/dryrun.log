@@ -1,0 +1,5 @@
+make.exe: Entering directory 'z:/CMake-Learn/cmake-compile-features'
+make.exe: Leaving directory 'z:/CMake-Learn/cmake-compile-features'
+ 
+make.exe: *** No targets specified and no makefile found.  Stop.
+

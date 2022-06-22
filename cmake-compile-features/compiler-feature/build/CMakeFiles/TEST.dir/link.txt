@@ -1,0 +1,2 @@
+F:\vscode_MinGW\bin\ar.exe qc libTEST.a CMakeFiles/TEST.dir/TEST.cpp.obj
+F:\vscode_MinGW\bin\ranlib.exe libTEST.a
